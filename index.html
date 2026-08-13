@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>smeckhokot.mp4 — автозапуск без остановки</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0b0e14;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            padding: 16px;
+        }
+        #container {
+            background: #141a24;
+            border-radius: 32px;
+            padding: 24px;
+            max-width: 960px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.9), inset 0 0 0 1px #3d4a5a;
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 20px;
+            background: #000;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            cursor: default;
+            pointer-events: none; /* запрещаем клики по видео */
+        }
+        #info {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #b7cdd9;
+            font-size: 16px;
+            background: #0f1620;
+            padding: 14px 22px;
+            border-radius: 40px;
+            border-bottom: 2px solid #2b3f52;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        #status {
+            color: #9bbdd4;
+            font-weight: 500;
+        }
+        #status span {
+            color: #efd9b0;
+            font-weight: bold;
+        }
+        #log {
+            margin-top: 14px;
+            background: #0b1119;
+            border-radius: 18px;
+            padding: 12px 18px;
+            color: #a0c0d0;
+            font-size: 14px;
+            min-height: 48px;
+            border-left: 4px solid #2f556b;
+            font-family: 'Courier New', monospace;
+            line-height: 1.6;
+            box-shadow: inset 0 0 20px #030608;
+            word-break: break-all;
+            user-select: none;
+        }
+        .badge {
+            display: inline-block;
+            background: #1f3a4a;
+            padding: 2px 14px;
+            border-radius: 30px;
+            font-size: 13px;
+            color: #b7d9e8;
+        }
+        /* скрываем все элементы управления браузера */
+        video::-webkit-media-controls {
+            display: none !important;
+        }
+        video::-webkit-media-controls-enclosure {
+            display: none !important;
+        }
+        video::-webkit-media-controls-panel {
+            display: none !important;
+        }
+        video::-webkit-media-controls-overlay-play-button {
+            display: none !important;
+        }
+        video::-webkit-media-controls-start-playback-button {
+            display: none !important;
+        }
+        video::-webkit-media-controls-timeline {
+            display: none !important;
+        }
+        video::-webkit-media-controls-current-time-display {
+            display: none !important;
+        }
+        video::-webkit-media-controls-time-remaining-display {
+            display: none !important;
+        }
+        video::-webkit-media-controls-mute-button {
+            display: none !important;
+        }
+        video::-webkit-media-controls-volume-slider {
+            display: none !important;
+        }
+        video::-webkit-media-controls-fullscreen-button {
+            display: none !important;
+        }
+        /* Firefox */
+        video::-moz-media-controls {
+            display: none !important;
+        }
+        video::-moz-media-controls-panel {
+            display: none !important;
+        }
+        /* IE/Edge */
+        video::-ms-media-controls {
+            display: none !important;
+        }
+        video::-ms-media-controls-panel {
+            display: none !important;
+        }
+        @media (max-width: 600px) {
+            #container { padding: 12px; }
+            #info { flex-direction: column; align-items: stretch; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div id="container">
+    <!-- Видео — без элементов управления, без pointer-events -->
+    <video id="player" preload="auto" playsinline disablePictureInPicture controlslist="nodownload nofullscreen noremoteplayback">
+        <source src="smeckhokot.mp4" type="video/mp4">
+        <p>❌ Файл <strong>smeckhokot.mp4</strong> не найден.</p>
+    </video>
+
+    <!-- Только статус — никаких кнопок -->
+    <div id="info">
+        <div id="status">
+            📹 <span id="fileName">smeckhokot.mp4</span> &nbsp;·&nbsp; <span id="videoState">⏳ загрузка...</span>
+        </div>
+        <div>
+            <span class="badge">🔒 автозапуск · без остановки</span>
+        </div>
+    </div>
+
+    <!-- Лог событий (информационный) -->
+    <div id="log">⚡ Ожидание файла <strong>smeckhokot.mp4</strong> в корне репозитория.</div>
+</div>
+
+<script>
+    (function() {
+        const video = document.getElementById('player');
+        const statusEl = document.getElementById('videoState');
+        const logEl = document.getElementById('log');
+        const fileNameSpan = document.getElementById('fileName');
+
+        function log(msg) {
+            logEl.innerHTML = msg + '<br>' + logEl.innerHTML;
+            if (logEl.children.length > 20) logEl.lastChild?.remove();
+        }
+
+        function updateStatus(text) {
+            statusEl.textContent = text;
+        }
+
+        // === Жёсткий автозапуск с повторными попытками ===
+        function forcePlay() {
+            video.volume = 1.0;
+            video.muted = false;
+
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    updateStatus('▶ воспроизводится (без остановки)');
+                    log('✅ Автозапуск успешен. Управление заблокировано.');
+                }).catch(error => {
+                    // Если автоплей заблокирован — пробуем снова через событие клика по документу
+                    updateStatus('⏳ ожидание жеста пользователя...');
+                    log('⚠️ Автозапуск заблокирован. Ожидаем любое взаимодействие...');
+
+                    const unlock = function() {
+                        video.play().then(() => {
+                            updateStatus('▶ воспроизводится (без остановки)');
+                            log('✅ Запущено после взаимодействия.');
+                            document.removeEventListener('click', unlock);
+                            document.removeEventListener('touchstart', unlock);
+                            document.removeEventListener('keydown', unlock);
+                        }).catch(() => {});
+                    };
+                    document.addEventListener('click', unlock);
+                    document.addEventListener('touchstart', unlock);
+                    document.addEventListener('keydown', unlock);
+                });
+            } else {
+                updateStatus('▶ воспроизводится');
+                log('▶ Видео запущено (старый браузер)');
+            }
+        }
+
+        // === Блокировка всех попыток паузы/остановки ===
+        function preventPause() {
+            // Если видео поставлено на паузу — сразу перезапускаем
+            video.addEventListener('pause', function() {
+                if (!video.ended) {
+                    video.play().catch(() => {});
+                    log('🛑 Попытка паузы — перезапущено!');
+                }
+            });
+
+            // Блокируем клавиши пробел, K, стрелки, медиа-клавиши
+            document.addEventListener('keydown', function(e) {
+                const key = e.key;
+                if (key === ' ' || key === 'Space' || key === 'k' || key === 'K' ||
+                    key === 'ArrowUp' || key === 'ArrowDown' ||
+                    key === 'MediaPlayPause' || key === 'MediaStop') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    log('⌨️ Клавиша ' + key + ' заблокирована.');
+                    // Дополнительно форсируем воспроизведение
+                    if (video.paused && !video.ended) {
+                        video.play().catch(() => {});
+                    }
+                }
+            }, true);
+
+            // Блокируем контекстное меню на видео (правый клик)
+            video.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                log('🚫 ПКМ заблокирован.');
+            });
+
+            // Запрещаем перетаскивание видео
+            video.addEventListener('dragstart', function(e) {
+                e.preventDefault();
+            });
+
+            // Запрещаем выход из полноэкранного режима через ESC (частично)
+            document.addEventListener('fullscreenchange', function() {
+                if (document.fullscreenElement === null && !video.ended) {
+                    // Если вышли из фулскрина — не пауза, но можно вернуть
+                    if (video.paused && !video.ended) {
+                        video.play().catch(() => {});
+                    }
+                }
+            });
+        }
+
+        // === СОБЫТИЯ ВИДЕО ===
+        video.addEventListener('loadedmetadata', function() {
+            const dur = video.duration;
+            if (isFinite(dur)) {
+                log(`📁 Загружено: ${fileNameSpan.textContent} (${Math.round(dur)} сек.)`);
+                updateStatus('⏸ готов к автозапуску');
+            }
+        });
+
+        video.addEventListener('canplay', function() {
+            log('✅ Видео полностью загружено.');
+            forcePlay();
+        });
+
+        video.addEventListener('play', function() {
+            updateStatus('▶ воспроизводится (без остановки)');
+        });
+
+        video.addEventListener('ended', function() {
+            updateStatus('⏹ завершено');
+            log('🏁 Видео закончилось. Перезапуск через 2 секунды...');
+            // Бесконечный цикл — перезапускаем после окончания
+            setTimeout(() => {
+                video.currentTime = 0;
+                video.play().catch(() => {});
+                log('⟳ Авто-перезапуск.');
+            }, 2000);
+        });
+
+        video.addEventListener('error', function(e) {
+            const err = video.error;
+            let msg = '❌ Ошибка видео: ';
+            if (err) {
+                switch (err.code) {
+                    case 1: msg += 'Загрузка прервана.'; break;
+                    case 2: msg += 'Сетевой сбой.'; break;
+                    case 3: msg += 'Декодирование не удалось.'; break;
+                    case 4: msg += 'Формат не поддерживается, либо файл отсутствует.'; break;
+                    default: msg += err.message || 'неизвестная ошибка.';
+                }
+            } else {
+                msg += 'файл не найден или недоступен. Проверьте наличие smeckhokot.mp4 в корне.';
+            }
+            log(`🚨 ${msg}`);
+            updateStatus('❌ ошибка');
+            console.error('Video error:', err);
+        });
+
+        // === ЗАПУСК ПРИ ЗАГРУЗКЕ ===
+        window.addEventListener('load', function() {
+            log('📄 Страница загружена. Принудительный автозапуск...');
+            // Если видео уже достаточно загружено — стартуем сразу
+            if (video.readyState >= 2) {
+                forcePlay();
+            } else {
+                video.addEventListener('loadedmetadata', function onMeta() {
+                    forcePlay();
+                    video.removeEventListener('loadedmetadata', onMeta);
+                });
+            }
+            // Включаем защиту от паузы
+            preventPause();
+        });
+
+        // Дополнительный перехват любых попыток паузы через MutationObserver (на случай встроенных контроллов)
+        setInterval(() => {
+            if (video.paused && !video.ended && video.readyState > 0) {
+                video.play().catch(() => {});
+                log('🔄 Принудительное возобновление (таймер).');
+            }
+        }, 5000);
+
+        log('🔒 Режим «без остановки» активирован. Любая пауза будет мгновенно снята.');
+        log('📌 Поместите файл <strong>smeckhokot.mp4</strong> в ту же папку, что и этот HTML.');
+    })();
+</script>
+</body>
+</html>
